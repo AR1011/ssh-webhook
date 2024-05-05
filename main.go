@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/AR1011/ssh-webhook/provisioner"
 	"github.com/AR1011/ssh-webhook/ssh"
 	"github.com/AR1011/ssh-webhook/store"
@@ -10,25 +8,17 @@ import (
 )
 
 func main() {
-	fmt.Println(banner())
 	store := store.NewMemoryStore()
-	provisioner := provisioner.NewProvisioner(store)
+	provisioner := &provisioner.Provisioner{
+		PublicURL:   "https://sshwebhook.io",
+		InternalURL: "http://127.0.0.1",
+		Store:       store,
+	}
+
 	httpServer := web.NewWebServer(":4001", provisioner)
 	sshServer := ssh.NewSSHServer(":2222", provisioner)
 
 	go sshServer.Start()
 	httpServer.Start()
 
-}
-
-func banner() string {
-	return `
-                       _     _                 _    
-                      | |   | |               | |   
-  ___ _____      _____| |__ | |__   ___   ___ | | __
- / __/ __\ \ /\ / / _ \ '_ \| '_ \ / _ \ / _ \| |/ /
- \__ \__ \\ V  V /  __/ |_) | | | | (_) | (_) |   < 
- |___/___/ \_/\_/ \___|_.__/|_| |_|\___/ \___/|_|\_\
-                                                                                                        
-`
 }

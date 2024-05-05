@@ -5,22 +5,16 @@ import (
 	"math/rand"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/AR1011/ssh-webhook/store"
 	"github.com/AR1011/ssh-webhook/types"
+	"github.com/google/uuid"
 )
 
 type Provisioner struct {
 	PublicURL   string
 	InternalURL string
-	store       store.Store
-}
-
-func NewProvisioner(store store.Store) *Provisioner {
-	return &Provisioner{
-		store: store,
-	}
+	Store       store.Store
 }
 
 func (p *Provisioner) Provision(ir types.InternalRoute) error {
@@ -43,20 +37,15 @@ func (p *Provisioner) ProvisionSocket() types.Socket {
 }
 
 func (p *Provisioner) RandomUnassignedPort() int64 {
-	// random port between 20000 - 65000
-	rand.Seed(time.Now().UnixNano())
-
-	// Define the range for the random port
 	min := 20000
 	max := 65000
-
-	// Generate a random number within the range
 	randomPort := min + rand.Intn(max-min+1)
 
 	return int64(randomPort)
 }
 
 func (p *Provisioner) GetHookConfig(urli string) (types.WebhookConfig, error) {
+	id := uuid.New().String()
 	parsedUrl, err := url.Parse(urli)
 	if err != nil {
 		return types.WebhookConfig{}, err
@@ -66,6 +55,9 @@ func (p *Provisioner) GetHookConfig(urli string) (types.WebhookConfig, error) {
 	host := hostParts[0]
 	if host == "localhost" {
 		host = "127.0.0.1"
+	}
+	if host == "" {
+		return types.WebhookConfig{}, fmt.Errorf("invalid host")
 	}
 
 	port := int64(80)
@@ -79,13 +71,14 @@ func (p *Provisioner) GetHookConfig(urli string) (types.WebhookConfig, error) {
 	}
 
 	internalSocket := p.ProvisionSocket()
-	publicURL := fmt.Sprintf("https://%s%s", parsedUrl.Host, parsedUrl.Path)
+	publicURL := fmt.Sprintf("https://%s%s", p.PublicURL, id)
 
 	return types.WebhookConfig{
+		ID:                   id,
 		ClientSocket:         clientSocket,
 		InternalServerSocket: internalSocket,
 		Path:                 parsedUrl.Path,
 		PublicURL:            publicURL,
-		InternalURL:          fmt.Sprintf("http://%s%s", internalSocket.Socket(), parsedUrl.Path),
+		InternalURL:          fmt.Sprintf("http://%s/%s", internalSocket.Socket(), parsedUrl.Path),
 	}, nil
 }

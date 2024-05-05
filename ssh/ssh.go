@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/AR1011/ssh-webhook/provisioner"
 	gssh "github.com/gliderlabs/ssh"
@@ -134,15 +135,19 @@ func (s *SSHServer) readPK() (cssh.Signer, error) {
 	return pk, nil
 }
 
+func (s *SSHServer) handleTunnelSession(session gssh.Session, id string) {
+	session.Write([]byte("Tunneling not yet implemented\n" + id + "\n"))
+}
+
 func (s *SSHServer) handleSession(session gssh.Session) {
 	defer session.Close()
 
-	t := term.NewTerminal(session, "$ ")
 	if session.RawCommand() != "" {
-		session.Write([]byte(fmt.Sprintf("Invalid command\n%s", HelpMessage())))
+		s.handleTunnelSession(session, session.RawCommand())
 		return
 	}
 
+	t := term.NewTerminal(session, "$ ")
 	t.Write([]byte(startMessage()))
 
 	for {
@@ -170,35 +175,55 @@ func (s *SSHServer) handleSession(session gssh.Session) {
 			s.listActiveTunnels(session)
 		case "help":
 			s.help(session)
+		case "exit":
+			t.Write([]byte("Goodbye\n"))
+			return
 		default:
 			t.Write([]byte(fmt.Sprintf("\nInvalid command\n%s", HelpMessage())))
 		}
 	}
 }
 
-func (s *SSHServer) setupWebhook(session gssh.Session, t *term.Terminal) {
+func (s *SSHServer) renderMenu(t *term.Terminal) {
+	t.Write([]byte("\033[H\033[2J"))
+	t.Write([]byte(startMessage()))
+}
 
+func (s *SSHServer) setupWebhook(session gssh.Session, t *term.Terminal) {
 	t.SetPrompt("> ")
 	t.Write([]byte("Welcome to ssh-hook\n\nEnter the Local URL to forward to:\n"))
 
-	url, err := t.ReadLine()
-	if err != nil {
-		t.Write([]byte("error reading from session: " + err.Error()))
-		session.Close()
-		return
+	var url string
+	var err error
+	for {
+		url, err = t.ReadLine()
+		if err != nil {
+			t.Write([]byte(fmt.Sprintf("\nError reading from session: %s\n", err.Error())))
+			session.Close()
+			return
+		}
+
+		if url == "exit" {
+
+			s.renderMenu(t)
+			return
+		}
+
+		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+			url = "http://" + url
+		}
+
+		whConfig, err := s.provisioner.GetHookConfig(url)
+		if err != nil {
+			t.Write([]byte(fmt.Sprintf("\nInvalid URL, please try again: %s\n", err.Error())))
+			continue
+		}
+
+		fmt.Println(whConfig.String())
+		t.Write([]byte(fmt.Sprintf("\n\n%s\n\n", whConfig.String())))
+		break
 	}
 
-	fmt.Printf("URL: %s\n", url)
-
-	whConfig, err := s.provisioner.GetHookConfig(url)
-	fmt.Println(whConfig.String())
-	if err != nil {
-		t.Write([]byte("error getting hook config: " + err.Error()))
-		session.Close()
-		return
-	}
-
-	t.Write([]byte(fmt.Sprintf("\n\n%s\n\n", whConfig.String())))
 }
 
 func (s *SSHServer) setupTunnel(session gssh.Session, t *term.Terminal) {

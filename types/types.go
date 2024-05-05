@@ -1,6 +1,8 @@
 package types
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type InternalRoute struct {
 	ID      string
@@ -21,6 +23,7 @@ func (s *Socket) Socket() string {
 }
 
 type WebhookConfig struct {
+	ID                   string
 	ClientSocket         Socket
 	InternalServerSocket Socket
 	Path                 string
