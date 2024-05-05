@@ -32,5 +32,9 @@ type WebhookConfig struct {
 }
 
 func (w WebhookConfig) String() string {
-	return fmt.Sprintf("ClientSocket: %s\nInternalServerSocket: %s\nPublicURL: %s\nInternalURL: %s\n", w.ClientSocket.Socket(), w.InternalServerSocket.Socket(), w.PublicURL, w.InternalURL)
+	return fmt.Sprintf("ClientSocket: \t%s\nServerSocket: \t%s\nPublicURL: \t%s\nInternalURL: \t%s\n", w.ClientSocket.Socket(), w.InternalServerSocket.Socket(), w.PublicURL, w.InternalURL)
+}
+
+func (w WebhookConfig) TunnelCommand() string {
+	return fmt.Sprintf("ssh -R %s:%s localhost -p 2222", w.InternalServerSocket.Socket(), w.ClientSocket.Socket())
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/AR1011/ssh-webhook/store"
@@ -45,12 +46,14 @@ func (p *Provisioner) RandomUnassignedPort() int64 {
 }
 
 func (p *Provisioner) GetHookConfig(urli string) (types.WebhookConfig, error) {
+	fmt.Println("URL: ", urli)
 	id := uuid.New().String()
 	parsedUrl, err := url.Parse(urli)
 	if err != nil {
 		return types.WebhookConfig{}, err
 	}
 
+	fmt.Printf("Parsed URL: %+v\n", parsedUrl)
 	hostParts := strings.Split(parsedUrl.Host, ":")
 	host := hostParts[0]
 	if host == "localhost" {
@@ -62,7 +65,11 @@ func (p *Provisioner) GetHookConfig(urli string) (types.WebhookConfig, error) {
 
 	port := int64(80)
 	if len(hostParts) > 1 {
-		port = int64(port)
+		var err error
+		port, err = strconv.ParseInt(hostParts[1], 10, 64)
+		if err != nil {
+			return types.WebhookConfig{}, fmt.Errorf("invalid port: %v", err)
+		}
 	}
 
 	clientSocket := types.Socket{
@@ -71,7 +78,7 @@ func (p *Provisioner) GetHookConfig(urli string) (types.WebhookConfig, error) {
 	}
 
 	internalSocket := p.ProvisionSocket()
-	publicURL := fmt.Sprintf("https://%s%s", p.PublicURL, id)
+	publicURL := fmt.Sprintf("%s/%s", p.PublicURL, id)
 
 	return types.WebhookConfig{
 		ID:                   id,
