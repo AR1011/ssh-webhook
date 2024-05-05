@@ -209,6 +209,7 @@ func (s *SSHServer) setupWebhook(session gssh.Session, t *term.Terminal) {
 			return
 		}
 
+		// if no protocol, add http
 		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 			url = "http://" + url
 		}
@@ -222,7 +223,7 @@ func (s *SSHServer) setupWebhook(session gssh.Session, t *term.Terminal) {
 		fmt.Println(whConfig.String())
 		// t.Write([]byte(fmt.Sprintf("\n\n%s\n\n", whConfig.String())))
 
-		t.Write([]byte(fmt.Sprintf("\n\nPublic URL: %s\n\nTunnel Command: %s\n\n", whConfig.PublicURL, whConfig.TunnelCommand())))
+		t.Write([]byte(fmt.Sprintf("\n\nPublic URL: \n%s\n\nTunnel Command: \n%s\n\n", whConfig.PublicURL, whConfig.TunnelCommand())))
 		break
 	}
 

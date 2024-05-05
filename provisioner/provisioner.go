@@ -46,14 +46,17 @@ func (p *Provisioner) RandomUnassignedPort() int64 {
 }
 
 func (p *Provisioner) GetHookConfig(urli string) (types.WebhookConfig, error) {
-	fmt.Println("URL: ", urli)
 	id := uuid.New().String()
+
 	parsedUrl, err := url.Parse(urli)
 	if err != nil {
 		return types.WebhookConfig{}, err
 	}
 
-	fmt.Printf("Parsed URL: %+v\n", parsedUrl)
+	if parsedUrl.Scheme != "http" && parsedUrl.Scheme != "https" {
+		return types.WebhookConfig{}, fmt.Errorf("invalid scheme: %s - must be http or https", parsedUrl.Scheme)
+	}
+
 	hostParts := strings.Split(parsedUrl.Host, ":")
 	host := hostParts[0]
 	if host == "localhost" {
@@ -64,6 +67,10 @@ func (p *Provisioner) GetHookConfig(urli string) (types.WebhookConfig, error) {
 	}
 
 	port := int64(80)
+	if parsedUrl.Scheme == "https" {
+		port = int64(443)
+	}
+
 	if len(hostParts) > 1 {
 		var err error
 		port, err = strconv.ParseInt(hostParts[1], 10, 64)
@@ -80,12 +87,19 @@ func (p *Provisioner) GetHookConfig(urli string) (types.WebhookConfig, error) {
 	internalSocket := p.ProvisionSocket()
 	publicURL := fmt.Sprintf("%s/%s", p.PublicURL, id)
 
+	path := parsedUrl.Path
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+
+	internalURL := fmt.Sprintf("%s://%s%s", parsedUrl.Scheme, internalSocket.Socket(), path)
+
 	return types.WebhookConfig{
 		ID:                   id,
 		ClientSocket:         clientSocket,
 		InternalServerSocket: internalSocket,
-		Path:                 parsedUrl.Path,
+		Path:                 path,
 		PublicURL:            publicURL,
-		InternalURL:          fmt.Sprintf("http://%s/%s", internalSocket.Socket(), parsedUrl.Path),
+		InternalURL:          internalURL,
 	}, nil
 }
