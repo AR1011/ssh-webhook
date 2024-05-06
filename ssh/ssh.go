@@ -164,7 +164,7 @@ func (s *SSHServer) handleTunnelSession(session gssh.Session) {
 		return
 	}
 
-	session.Write([]byte(fmt.Sprintf("Tunnel Conected\n\nPublic URL:\n%s\n\nLocal Binding:\n%s\n", webhookCondig.PublicURL, webhookCondig.ClientSocket.Socket()+webhookCondig.Path)))
+	session.Write([]byte(fmt.Sprintf("Tunnel Conected\n\nPublic URL:\n%s\n\nLocal Binding:\n%s\n\nListening For Requests...\n\n", webhookCondig.PublicURL, webhookCondig.ClientSocket.Socket()+webhookCondig.Path)))
 
 	<-session.Context().Done()
 }

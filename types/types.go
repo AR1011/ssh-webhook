@@ -37,3 +37,39 @@ func (w WebhookConfig) String() string {
 func (w WebhookConfig) TunnelCommand() string {
 	return fmt.Sprintf("ssh -R %s:%s localhost -p 2222 tunnel", w.InternalServerSocket.Socket(), w.ClientSocket.Socket())
 }
+
+func ToSizeUnit(n int64) string {
+	if n < 1024 {
+		return fmt.Sprintf("%d B", n)
+	}
+	if n < 1024*1024 {
+		return fmt.Sprintf("%.2f KB", float64(n)/1024)
+	}
+	if n < 1024*1024*1024 {
+		return fmt.Sprintf("%.2f MB", float64(n)/(1024*1024))
+	}
+	return fmt.Sprintf("%.2f GB", float64(n)/(1024*1024*1024))
+}
+
+type RequestAnalytic struct {
+	Method           string
+	ReceivedAt       time.Time
+	TimeTaken        time.Duration
+	From             string
+	RequestBodySize  int64
+	ResponseBodySize int64
+	ResponseCode     int
+}
+
+func (r RequestAnalytic) String() string {
+	return fmt.Sprintf(
+		"Method=%s | ReceivedAt=%s | TimeTaken=%s | From=%s | RequestBodySize=%s | ResponseBodySize=%s | ResponseCode=%d",
+		r.Method,
+		r.ReceivedAt.Format("2006-01-02 15:04:05"),
+		r.TimeTaken.Round(time.Millisecond),
+		r.From,
+		ToSizeUnit(r.RequestBodySize),
+		ToSizeUnit(r.ResponseBodySize),
+		r.ResponseCode,
+	)
+}

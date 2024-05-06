@@ -6,8 +6,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/AR1011/ssh-webhook/provisioner"
+	"github.com/AR1011/ssh-webhook/types"
 )
 
 type WebServer struct {
@@ -38,12 +40,19 @@ func (s *WebServer) Start() {
 
 func (s *WebServer) handleID(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	st := time.Now()
+	reqAnalytic := types.RequestAnalytic{
+		Method:     r.Method,
+		From:       r.RemoteAddr,
+		ReceivedAt: time.Now(),
+	}
 
 	b, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Error reading request body", http.StatusInternalServerError)
 		return
 	}
+	reqAnalytic.RequestBodySize = int64(len(b))
 
 	defer r.Body.Close()
 
@@ -53,7 +62,6 @@ func (s *WebServer) handleID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println(fwdAddr.String())
 	nr, err := http.NewRequest(r.Method, fwdAddr.String(), bytes.NewReader(b))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -74,11 +82,14 @@ func (s *WebServer) handleID(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(resp.StatusCode)
 
-	_, err = io.Copy(w, resp.Body)
+	l, err := io.Copy(w, resp.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	reqAnalytic.ResponseBodySize = l
+	reqAnalytic.ResponseCode = resp.StatusCode
+	reqAnalytic.TimeTaken = time.Since(st)
 
-	fmt.Printf("Proxied request to: %s with response status: %d\n", fwdAddr.String(), resp.StatusCode)
+	fmt.Println(reqAnalytic.String())
 }

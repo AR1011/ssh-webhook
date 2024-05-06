@@ -12,3 +12,7 @@ sudo chmod +x keygen.sh
 ```bash
 make run
 ```
+
+<div align="center">
+  <img src="/assets/diagram.png" width="100%">
+</div>
