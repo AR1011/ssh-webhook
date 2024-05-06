@@ -1,13 +1,17 @@
 package ssh
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/AR1011/ssh-webhook/provisioner"
+	"github.com/AR1011/ssh-webhook/types"
 	gssh "github.com/gliderlabs/ssh"
 	cssh "golang.org/x/crypto/ssh"
 	"golang.org/x/term"
@@ -81,14 +85,32 @@ func NewSSHServer(addr string, provisioner *provisioner.Provisioner) *SSHServer 
 
 		},
 		PublicKeyHandler: func(ctx gssh.Context, key gssh.PublicKey) bool {
+			// todo: auth
+			ctx.SetValue("public_key", key.Marshal())
 			return true
 		},
-		LocalPortForwardingCallback: gssh.LocalPortForwardingCallback(func(ctx gssh.Context, dhost string, dport uint32) bool {
-			log.Println("Accepted forward", dhost, dport)
-			return true
-		}),
 		ReversePortForwardingCallback: gssh.ReversePortForwardingCallback(func(ctx gssh.Context, host string, port uint32) bool {
+
+			key := base64.StdEncoding.EncodeToString(ctx.Value("public_key").([]byte))
+			config, err := provisioner.Store.FindByPublicKeyAndSocket(key, host, int(port))
+			if err != nil {
+				slog.Warn("attempt to bind", "host", host, "port", port, "error", "denied: "+err.Error())
+				return false
+			}
+
+			if config.ActiveSession != nil {
+				slog.Warn("attempt to bind", "host", host, "port", port, "error", "denied: session already active")
+				return false
+			}
+
+			config.ActiveSession = &types.TunnelSession{
+				SessionID: ctx.SessionID(),
+				StartedAt: time.Now(),
+			}
+			provisioner.Store.Update(config.ID, config)
+
 			log.Println("attempt to bind", host, port, "granted")
+
 			return true
 		}),
 		RequestHandlers: map[string]gssh.RequestHandler{
@@ -135,15 +157,24 @@ func (s *SSHServer) readPK() (cssh.Signer, error) {
 	return pk, nil
 }
 
-func (s *SSHServer) handleTunnelSession(session gssh.Session, id string) {
-	session.Write([]byte("Tunneling not yet implemented\n" + id + "\n"))
+func (s *SSHServer) handleTunnelSession(session gssh.Session) {
+	webhookCondig, err := s.provisioner.Store.GetBySessionID(session.Context().SessionID())
+	if err != nil {
+		session.Write([]byte("Error: " + err.Error()))
+		return
+	}
+
+	session.Write([]byte(fmt.Sprintf("Tunnel Conected\n\nPublic URL:\n%s\n\nLocal Binding:\n%s\n", webhookCondig.PublicURL, webhookCondig.ClientSocket.Socket()+webhookCondig.Path)))
+
+	<-session.Context().Done()
 }
 
 func (s *SSHServer) handleSession(session gssh.Session) {
 	defer session.Close()
+	session.Context()
 
 	if session.RawCommand() != "" {
-		s.handleTunnelSession(session, session.RawCommand())
+		s.handleTunnelSession(session)
 		return
 	}
 
@@ -190,6 +221,12 @@ func (s *SSHServer) renderMenu(t *term.Terminal) {
 }
 
 func (s *SSHServer) setupWebhook(session gssh.Session, t *term.Terminal) {
+	if session.PublicKey() == nil {
+		t.Write([]byte("missing public key\n"))
+		session.Close()
+		return
+	}
+
 	t.SetPrompt("> ")
 	t.Write([]byte("Welcome to ssh-hook\n\nEnter the Local URL to forward to:\n"))
 
@@ -220,10 +257,15 @@ func (s *SSHServer) setupWebhook(session gssh.Session, t *term.Terminal) {
 			continue
 		}
 
+		key := session.PublicKey().Marshal()
+		whConfig.PubKey = base64.StdEncoding.EncodeToString(key)
+		s.provisioner.Store.Set(whConfig.ID, whConfig)
+
 		fmt.Println(whConfig.String())
 		// t.Write([]byte(fmt.Sprintf("\n\n%s\n\n", whConfig.String())))
 
 		t.Write([]byte(fmt.Sprintf("\n\nPublic URL: \n%s\n\nTunnel Command: \n%s\n\n", whConfig.PublicURL, whConfig.TunnelCommand())))
+		session.Close()
 		break
 	}
 
@@ -250,10 +292,6 @@ func (s *SSHServer) setupTunnel(session gssh.Session, t *term.Terminal) {
 	fmt.Printf("ID: %s, Port: %s\n", id, port)
 
 }
-
-// func (s *SSHServer) showInfo(session gssh.Session) {
-// 	session.Write([]byte("SSH Webhook Server\n"))
-// }
 
 func (s *SSHServer) listWebhooks(session gssh.Session) {
 	session.Write([]byte("List of webhooks\n"))

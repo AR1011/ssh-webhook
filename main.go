@@ -11,8 +11,9 @@ func main() {
 	store := store.NewMemoryStore()
 	provisioner := &provisioner.Provisioner{
 		PublicURL:   "https://sshwebhook.io",
-		InternalURL: "http://127.0.0.1",
+		InternalURL: "http://127.0.0.1:4001",
 		Store:       store,
+		Dev:         true,
 	}
 
 	httpServer := web.NewWebServer(":4001", provisioner)

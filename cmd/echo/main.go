@@ -1,17 +1,24 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 )
 
 func echoHandler(w http.ResponseWriter, r *http.Request) {
-	// Copy the request body directly to the response body
-	_, err := io.Copy(w, r.Body)
+	slog.Info("Got request", "from", r.RemoteAddr)
+	rBody, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, "Failed to echo request body", http.StatusInternalServerError)
+		http.Error(w, "Failed to read request body", http.StatusInternalServerError)
+		return
 	}
+
+	fmt.Printf("Received: %s\n", rBody)
+
+	w.Write(rBody)
 }
 
 func main() {

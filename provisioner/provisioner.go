@@ -16,18 +16,21 @@ type Provisioner struct {
 	PublicURL   string
 	InternalURL string
 	Store       store.Store
-}
-
-func (p *Provisioner) Provision(ir types.InternalRoute) error {
-	return nil
-}
-
-func (p *Provisioner) Deprovision(id string) error {
-	return nil
+	Dev         bool
 }
 
 func (p *Provisioner) GetForwardingAddress(id string) (*url.URL, error) {
-	return &url.URL{}, nil
+	session, err := p.Store.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	fwdURL, err := url.Parse(session.InternalURL)
+	if err != nil {
+		return nil, err
+	}
+
+	return fwdURL, nil
 }
 
 func (p *Provisioner) ProvisionSocket() types.Socket {
@@ -38,11 +41,21 @@ func (p *Provisioner) ProvisionSocket() types.Socket {
 }
 
 func (p *Provisioner) RandomUnassignedPort() int64 {
-	min := 20000
-	max := 65000
-	randomPort := min + rand.Intn(max-min+1)
+	var (
+		port int64
+		min  = 20000
+		max  = 65000
+	)
 
-	return int64(randomPort)
+	for {
+		tp := min + rand.Intn(max-min+1)
+		if p.Store.IsPortAvailable(tp) {
+			port = int64(tp)
+			break
+		}
+	}
+
+	return port
 }
 
 func (p *Provisioner) GetHookConfig(urli string) (types.WebhookConfig, error) {
@@ -85,7 +98,13 @@ func (p *Provisioner) GetHookConfig(urli string) (types.WebhookConfig, error) {
 	}
 
 	internalSocket := p.ProvisionSocket()
-	publicURL := fmt.Sprintf("%s/%s", p.PublicURL, id)
+
+	var publicURL string
+	if p.Dev {
+		publicURL = fmt.Sprintf("%s/%s", p.InternalURL, id)
+	} else {
+		publicURL = fmt.Sprintf("%s/%s", p.PublicURL, id)
+	}
 
 	path := parsedUrl.Path
 	if !strings.HasPrefix(path, "/") {

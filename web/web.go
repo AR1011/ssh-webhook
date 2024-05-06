@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -18,13 +19,14 @@ type WebServer struct {
 func NewWebServer(host string, provisioner *provisioner.Provisioner) *WebServer {
 	return &WebServer{
 		Host:        host,
-		router:      http.NewServeMux(),
+		router:      nil,
 		provisioner: provisioner,
 	}
 }
 
 func (s *WebServer) createRoutes() {
-	s.router.HandleFunc("/", s.handleRoot)
+	s.router = http.NewServeMux()
+	s.router.HandleFunc("/{id}", s.handleID)
 	s.router.HandleFunc("/{id}/*", s.handleID)
 }
 
@@ -34,42 +36,49 @@ func (s *WebServer) Start() {
 	log.Fatal(http.ListenAndServe(s.Host, s.router))
 }
 
-func (s *WebServer) handleRoot(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Hello, World!"))
-}
-
 func (s *WebServer) handleID(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
-	fwdadr, err := s.provisioner.GetForwardingAddress(id)
+	b, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Error reading request body", http.StatusInternalServerError)
+		return
+	}
 
+	defer r.Body.Close()
+
+	fwdAddr, err := s.provisioner.GetForwardingAddress(id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	nr := http.Request{
-		Method: r.Method,
-		URL:    fwdadr,
-		Header: r.Header,
-		Body:   r.Body,
-	}
-
-	resp, err := http.DefaultClient.Do(&nr)
+	fmt.Println(fwdAddr.String())
+	nr, err := http.NewRequest(r.Method, fwdAddr.String(), bytes.NewReader(b))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	nr.Header = r.Header.Clone()
+
+	resp, err := http.DefaultClient.Do(nr)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
 	for k, v := range resp.Header {
-		w.Header().Set(k, v[0])
+		w.Header()[k] = v
+	}
+	w.WriteHeader(resp.StatusCode)
+
+	_, err = io.Copy(w, resp.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	w.WriteHeader(resp.StatusCode)
-	io.Copy(w, resp.Body)
-
-	resp.Body.Close()
-
-	return
-
+	fmt.Printf("Proxied request to: %s with response status: %d\n", fwdAddr.String(), resp.StatusCode)
 }
