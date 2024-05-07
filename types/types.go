@@ -3,6 +3,8 @@ package types
 import (
 	"fmt"
 	"time"
+
+	gssh "github.com/gliderlabs/ssh"
 )
 
 type Socket struct {
@@ -16,6 +18,7 @@ func (s *Socket) Socket() string {
 
 type TunnelSession struct {
 	SessionID string
+	Session   gssh.Session
 	StartedAt time.Time
 }
 
@@ -35,7 +38,7 @@ func (w WebhookConfig) String() string {
 }
 
 func (w WebhookConfig) TunnelCommand() string {
-	return fmt.Sprintf("ssh -R %s:%s localhost -p 2222 tunnel", w.InternalServerSocket.Socket(), w.ClientSocket.Socket())
+	return fmt.Sprintf("ssh -R 0:%s localhost -p 2222 tunnel", w.ClientSocket.Socket())
 }
 
 func ToSizeUnit(n int64) string {
