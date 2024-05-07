@@ -1,4 +1,4 @@
-# SSH WEBHOOK
+# SSH Webhook
 
 ### How To Run
 
@@ -16,3 +16,10 @@ make run
 <div align="center">
   <img src="/assets/diagram.png" width="100%">
 </div>
+
+
+### How To Use
+```bash
+ssh localhost -p 2222
+```
+Connect via ssh then follow instructions in the terminal.
