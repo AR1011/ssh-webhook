@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/AR1011/ssh-webhook/provisioner"
@@ -56,7 +57,13 @@ func (s *WebServer) handleID(w http.ResponseWriter, r *http.Request) {
 
 	defer r.Body.Close()
 
-	fwdAddr, err := s.provisioner.GetForwardingAddress(id)
+	condig, err := s.provisioner.GetConfig(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	fwdAddr, err := url.Parse(condig.InternalURL)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -90,6 +97,10 @@ func (s *WebServer) handleID(w http.ResponseWriter, r *http.Request) {
 	reqAnalytic.ResponseBodySize = l
 	reqAnalytic.ResponseCode = resp.StatusCode
 	reqAnalytic.TimeTaken = time.Since(st)
+
+	if condig.ActiveSession.Session != nil {
+		condig.ActiveSession.Session.Write([]byte(fmt.Sprintf("\n%s\n", reqAnalytic.String())))
+	}
 
 	fmt.Println(reqAnalytic.String())
 }

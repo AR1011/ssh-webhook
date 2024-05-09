@@ -44,7 +44,6 @@ type localForwardChannelData struct {
 // DirectTCPIPHandler can be enabled by adding it to the server's
 // ChannelHandlers under direct-tcpip.
 func DirectTCPIPHandler(srv *gssh.Server, conn *cssh.ServerConn, newChan cssh.NewChannel, ctx gssh.Context) {
-	fmt.Println("Custom DirectTCPIPHandler")
 	d := localForwardChannelData{}
 	if err := cssh.Unmarshal(newChan.ExtraData(), &d); err != nil {
 		newChan.Reject(cssh.ConnectionFailed, "error parsing forward data: "+err.Error())
@@ -124,10 +123,6 @@ func closeSession(ctx gssh.Context) func(msg string) {
 }
 
 func (h *ForwardedTCPHandler) HandleSSHRequest(ctx gssh.Context, srv *gssh.Server, req *cssh.Request) (bool, []byte) {
-	fmt.Println("Custom ForwardedTCPHandler > HandleSSHRequest")
-	fmt.Printf("ssh remote addr: \t%s\n", ctx.RemoteAddr().String())
-	fmt.Printf("ssh local addr: \t%s\n", ctx.LocalAddr().String())
-
 	h.Lock()
 	if h.forwards == nil {
 		h.forwards = make(map[string]net.Listener)

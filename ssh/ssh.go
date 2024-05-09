@@ -158,7 +158,12 @@ func (s *SSHServer) handleSession(session gssh.Session) {
 
 	// check the context for cancel session
 	if session.Context().Value("close_session") != nil {
-		session.Write([]byte(session.Context().Value("close_session_msg").(string)))
+		errMsg, ok := session.Context().Value("close_session_msg").(string)
+		if !ok {
+			errMsg = "Session closed"
+		}
+
+		session.Write([]byte(fmt.Sprintf("\n\n=== ERROR ===\n%s\n\n", errMsg)))
 		return
 	}
 

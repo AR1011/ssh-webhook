@@ -33,6 +33,15 @@ func (p *Provisioner) GetForwardingAddress(id string) (*url.URL, error) {
 	return fwdURL, nil
 }
 
+func (p *Provisioner) GetConfig(id string) (types.WebhookConfig, error) {
+	session, err := p.Store.GetByID(id)
+	if err != nil {
+		return types.WebhookConfig{}, err
+	}
+
+	return session, nil
+}
+
 func (p *Provisioner) ProvisionSocket() types.Socket {
 	return types.Socket{
 		Host: "127.0.0.1",
